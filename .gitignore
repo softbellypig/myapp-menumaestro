@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local files
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Tauri debug
+src-tauri/WixTools/

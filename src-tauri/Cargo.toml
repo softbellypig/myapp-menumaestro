@@ -1,0 +1,31 @@
+[package]
+name = "menumaestro"
+version = "1.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+dirs = "6"
+
+[target.'cfg(windows)'.dependencies]
+lnk = "0.5"
+winapi = { version = "0.3", features = [
+  "shellapi", "objbase", "combaseapi", "shobjidl_core",
+  "wingdi", "winuser", "windef", "libloaderapi", "errhandlingapi",
+  "fileapi", "winreg", "winnt", "minwindef"
+] }
+image = "0.25"
+base64 = "0.22"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
