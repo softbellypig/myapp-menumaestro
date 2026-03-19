@@ -165,10 +165,6 @@ export async function pickPath(
           : undefined,
     });
     if (selected && typeof selected === "string") {
-      // Resolve .lnk shortcuts
-      if (selected.toLowerCase().endsWith(".lnk")) {
-        return resolveShortcut(selected);
-      }
       return selected;
     }
     return null;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, Window } from "@tauri-apps/api/window";
@@ -64,6 +65,8 @@ function PopupItem({
   const [showSub, setShowSub] = useState(false);
   const [hovered, setHovered] = useState(false);
   const closeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itemRef = useRef<HTMLDivElement>(null);
+  const [subPos, setSubPos] = useState({ top: 0, left: 0 });
 
   const isFolder = item.type === "folder";
   const isMenu = item.type === "menu";
@@ -86,6 +89,14 @@ function PopupItem({
   // Clean up timer on unmount
   useEffect(() => () => cancelClose(), []);
 
+  // Calculate side submenu position from the item bounding rect
+  useEffect(() => {
+    if (showSub && sideSubmenu && isExpandable && itemRef.current) {
+      const rect = itemRef.current.getBoundingClientRect();
+      setSubPos({ top: rect.top, left: rect.right });
+    }
+  }, [showSub, sideSubmenu, isExpandable]);
+
   if (isSep) {
     return (
       <div className="px-3" style={{ paddingTop: `${settings.itemSpacing + 2}px`, paddingBottom: `${settings.itemSpacing + 2}px` }}>
@@ -103,9 +114,10 @@ function PopupItem({
   };
 
   return (
-    <div style={{ position: sideSubmenu && isExpandable ? "relative" : undefined }}>
+    <div>
       {/* The item row */}
       <div
+        ref={itemRef}
         className="flex items-center gap-2 cursor-pointer transition-colors"
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
@@ -157,24 +169,33 @@ function PopupItem({
         </div>
       )}
 
-      {/* Side submenu */}
-      {isExpandable && sideSubmenu && showSub && item.children.length > 0 && (
-        <div
-          style={{
-            position: "absolute", left: "100%", top: 0,
-            width: `${settings.menuWidth}px`,
-            ...getMenuStyleCSS(settings), ...getBorderCSS(settings), zIndex: 9999,
-          }}
-          onMouseEnter={cancelClose}
-          onMouseLeave={() => scheduleClose(settings.submenuDelay ?? 300)}
-        >
-          <div className="py-1.5">
-            {item.children.map((c) => (
-              <PopupItem key={c.id} item={c} settings={settings} depth={0} sideSubmenu={true} onLaunch={onLaunch} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Side submenu (portal to avoid scroll clipping) */}
+      {isExpandable && sideSubmenu && showSub && item.children.length > 0 &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: `${subPos.left}px`,
+              top: `${subPos.top}px`,
+              width: `${settings.menuWidth}px`,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              ...getMenuStyleCSS(settings),
+              ...getBorderCSS(settings),
+              zIndex: 9999,
+            }}
+            onMouseEnter={cancelClose}
+            onMouseLeave={() => scheduleClose(settings.submenuDelay ?? 300)}
+          >
+            <div className="py-1.5">
+              {item.children.map((c) => (
+                <PopupItem key={c.id} item={c} settings={settings} depth={0} sideSubmenu={true} onLaunch={onLaunch} />
+              ))}
+            </div>
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 }
@@ -293,8 +314,11 @@ export default function TrayPopup() {
     <>
       <style>{`
         html, body, #root { background: transparent !important; }
-        *::-webkit-scrollbar { display: none; }
-        * { -ms-overflow-style: none; scrollbar-width: none; }
+        *::-webkit-scrollbar { width: 6px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background-color: rgba(128,128,128,0.3); border-radius: 3px; }
+        *::-webkit-scrollbar-thumb:hover { background-color: rgba(128,128,128,0.5); }
+        * { scrollbar-width: thin; scrollbar-color: rgba(128,128,128,0.3) transparent; }
       `}</style>
       <div
         id="popup-backdrop"
@@ -307,7 +331,7 @@ export default function TrayPopup() {
       >
         <div style={{
           width: `${settings.menuWidth}px`, maxHeight: "85vh",
-          overflowY: sideSubmenu ? "visible" : "auto", overflowX: "visible",
+          overflowY: "auto",
           position: "relative",
           ...getMenuStyleCSS(settings), ...getBorderCSS(settings),
         }}>

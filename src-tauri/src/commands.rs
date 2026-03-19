@@ -265,22 +265,35 @@ pub fn check_path(target_path: String) -> Value {
     }
 }
 
-/// Resolve a .lnk shortcut to its target path (Windows only)
+/// Resolve a .lnk shortcut to its target path (Windows only).
+/// Returns the original path if resolution fails — callers can
+/// still launch .lnk files directly via the Windows Shell.
 #[tauri::command]
 pub fn resolve_shortcut(file_path: String) -> String {
     #[cfg(target_os = "windows")]
     {
         if file_path.to_lowercase().ends_with(".lnk") {
-            if let Ok(lnk) = lnk::ShellLink::open(&file_path) {
+            // Wrap in catch_unwind — the lnk crate can panic on malformed files
+            let fp = file_path.clone();
+            if let Ok(Some(resolved)) = std::panic::catch_unwind(move || -> Option<String> {
+                let lnk = lnk::ShellLink::open(&fp).ok()?;
                 if let Some(target) = lnk.link_info() {
                     if let Some(path) = target.local_base_path() {
-                        return path.to_string();
+                        let p = path.to_string();
+                        if !p.is_empty() && std::path::Path::new(&p).exists() {
+                            return Some(p);
+                        }
                     }
                 }
-                // Try relative path
                 if let Some(rel) = lnk.relative_path() {
-                    return rel.to_string();
+                    let r = rel.to_string();
+                    if !r.is_empty() && std::path::Path::new(&r).exists() {
+                        return Some(r);
+                    }
                 }
+                None
+            }) {
+                return resolved;
             }
         }
     }

@@ -214,17 +214,8 @@ fn main() {
                                             return None;
                                         }
 
-                                        #[cfg(target_os = "windows")]
-                                        {
-                                            if path_str.to_lowercase().ends_with(".lnk") {
-                                                // Safely try to resolve; fall back to raw path
-                                                return Some(
-                                                    safe_resolve_lnk(&path_str)
-                                                        .unwrap_or(path_str),
-                                                );
-                                            }
-                                        }
-
+                                        // Pass .lnk files through as-is — the Windows Shell
+                                        // handles them natively with full argument/workdir support
                                         Some(path_str)
                                     })
                                     .collect();
