@@ -33,3 +33,6 @@ npm-debug.log*
 
 # Tauri debug
 src-tauri/WixTools/
+icon-16.png
+icon-32.png
+icon-256.png

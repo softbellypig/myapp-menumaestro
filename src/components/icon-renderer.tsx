@@ -66,6 +66,7 @@ const iconMap: Record<string, LucideIcons.LucideIcon> = {
   Cloud: LucideIcons.Cloud,
   Sun: LucideIcons.Sun,
   File: LucideIcons.File,
+  Power: LucideIcons.Power,
 };
 
 export function getIconType(name: string | null | undefined): "lucide" | "emoji" | "custom" {
