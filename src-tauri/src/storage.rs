@@ -92,6 +92,7 @@ pub struct InsertMenuItem {
     pub shortcut_path: Option<String>,
     pub icon_name: Option<String>,
     pub icon_color: Option<String>,
+    #[allow(dead_code)]
     pub sort_order: Option<i32>,
     pub is_expanded: Option<bool>,
     pub folder_action: Option<String>,
@@ -242,7 +243,7 @@ impl Storage {
     }
 
     pub fn delete_menu_item(&self, id: &str) {
-        let mut data = self.data.lock().unwrap();
+        let data = self.data.lock().unwrap();
         // Recursively delete children
         let child_ids: Vec<String> = data
             .menu_items

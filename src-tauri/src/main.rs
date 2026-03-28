@@ -5,45 +5,10 @@ mod commands;
 mod storage;
 
 use storage::Storage;
-use std::process::Command as ProcessCommand;
 use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager, WebviewWindowBuilder,
 };
-
-fn launch_path(path: &str) {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        ProcessCommand::new("cmd")
-            .args(["/C", "start", "", path])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .ok();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        ProcessCommand::new("open").arg(path).spawn().ok();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        ProcessCommand::new("xdg-open").arg(path).spawn().ok();
-    }
-}
-
-/// Safely resolve a .lnk shortcut — returns None if it can't be read
-#[cfg(target_os = "windows")]
-fn safe_resolve_lnk(path_str: &str) -> Option<String> {
-    std::panic::catch_unwind(|| -> Option<String> {
-        let lnk = lnk::ShellLink::open(path_str).ok()?;
-        let info = lnk.link_info().as_ref()?;
-        let target = info.local_base_path().as_ref()?;
-        Some(target.to_string())
-    })
-    .ok()
-    .flatten()
-}
 
 /// Show the custom popup menu window near the tray icon
 fn show_popup_menu(app: &tauri::AppHandle, x: f64, y: f64) {

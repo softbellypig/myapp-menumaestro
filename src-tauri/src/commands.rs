@@ -19,7 +19,6 @@ pub fn quit_app(app: AppHandle) {
 pub fn set_launch_at_startup(enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        use std::path::PathBuf;
         use winapi::um::winreg::{RegSetValueExW, RegDeleteValueW, RegOpenKeyExW, RegCloseKey, HKEY_CURRENT_USER};
         use winapi::um::winnt::KEY_WRITE;
         use std::ptr;
