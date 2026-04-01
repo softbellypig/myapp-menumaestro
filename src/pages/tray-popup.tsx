@@ -357,10 +357,12 @@ export default function TrayPopup() {
               settings={settings}
               onClick={async () => {
                 try {
-                  const main = new Window("main");
-                  await main.show();
-                  await main.unminimize();
-                  await main.setFocus();
+                  const main = await Window.getByLabel("main");
+                  if (main) {
+                    await main.show();
+                    await main.unminimize();
+                    await main.setFocus();
+                  }
                 } catch {}
                 hidePopup();
               }}
