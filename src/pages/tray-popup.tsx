@@ -361,7 +361,10 @@ export default function TrayPopup() {
                   if (main) {
                     await main.show();
                     await main.unminimize();
+                    // Force to front above all windows, then release
+                    await main.setAlwaysOnTop(true);
                     await main.setFocus();
+                    await main.setAlwaysOnTop(false);
                   }
                 } catch {}
                 hidePopup();
