@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent, type DragOverEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { IconRenderer, getIconType } from "@/components/icon-renderer";
-import { ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronRight, ChevronDown, ExternalLink, GripVertical, Pencil, Trash2, Plus } from "lucide-react";
 import type { MenuItem, MenuSettings, MenuProfile } from "@shared/schema";
-import { buildTree } from "@/lib/menu-store";
+import { buildTree, canHaveChildren } from "@/lib/menu-store";
 import { launchMenuItem, isTauri as isElectron } from "@/lib/tauri-api";
 import { cn } from "@/lib/utils";
 
@@ -125,23 +132,14 @@ function getBorderCSS(settings: Omit<MenuSettings, "id">): React.CSSProperties {
   }
 }
 
-interface MenuPreviewProps {
-  items: MenuItem[];
-  settings: Omit<MenuSettings, "id">;
-  profiles?: MenuProfile[];
-  activeProfileId?: string | null;
-  onProfileClick?: (profileId: string | null) => void;
-}
+// ────────────────────────────────────────────────────────────────
+// Sortable preview item — the menu item itself, draggable + editable
+// ────────────────────────────────────────────────────────────────
 
-function PreviewItem({
-  item,
-  settings,
-  depth = 0,
-  expandedFolders,
-  toggleFolder,
-  hoveredId,
-  setHoveredId,
-  sideSubmenu,
+function SortablePreviewItem({
+  item, settings, depth = 0, expandedFolders, toggleFolder,
+  hoveredId, setHoveredId, sideSubmenu, isDropTarget, isDragging: parentDragging,
+  onEdit, onDelete,
 }: {
   item: TreeItem;
   settings: Omit<MenuSettings, "id">;
@@ -151,31 +149,67 @@ function PreviewItem({
   hoveredId: string | null;
   setHoveredId: (id: string | null) => void;
   sideSubmenu: boolean;
+  isDropTarget: boolean;
+  isDragging?: boolean;
+  onEdit?: (item: MenuItem) => void;
+  onDelete?: (id: string) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const itemRef = useRef<HTMLDivElement>(null);
+  const [subPos, setSubPos] = useState({ top: 0, left: 0 });
+
   const isFolder = item.type === "folder";
+  const isMenu = item.type === "menu";
   const isSeparator = item.type === "separator";
   const folderAction = (item as any).folderAction || "expand";
-  const isExpandableFolder = isFolder && folderAction === "expand";
-  const isOpenFolder = isFolder && folderAction === "open";
+  const isExpandableFolder = isMenu || (isFolder && folderAction === "expand");
   const isExpanded = expandedFolders.has(item.id);
   const isHovered = hoveredId === item.id;
   const hasShortcutPath = !!(item as any).shortcutPath;
   const isUrl = item.type === "url";
   const iconSize = settings.iconSize ?? 16;
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  // Calculate side submenu position
+  useEffect(() => {
+    if (isHovered && sideSubmenu && isExpandableFolder && itemRef.current) {
+      const rect = itemRef.current.getBoundingClientRect();
+      setSubPos({ top: rect.top, left: rect.right });
+    }
+  }, [isHovered, sideSubmenu, isExpandableFolder]);
+
   if (isSeparator) {
     return (
-      <div
-        className="px-3"
-        style={{
-          paddingTop: `${settings.itemSpacing + 2}px`,
-          paddingBottom: `${settings.itemSpacing + 2}px`,
-        }}
-      >
+      <div ref={setNodeRef} style={style} className="group relative">
         <div
-          className="h-px w-full"
-          style={{ backgroundColor: settings.separatorColor }}
-        />
+          className="px-3"
+          style={{
+            paddingTop: `${settings.itemSpacing + 2}px`,
+            paddingBottom: `${settings.itemSpacing + 2}px`,
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <button className="cursor-grab touch-none opacity-0 group-hover:opacity-40 transition-opacity" {...attributes} {...listeners}>
+              <GripVertical size={10} style={{ color: settings.textColor }} />
+            </button>
+            <div className="h-px flex-1" style={{ backgroundColor: settings.separatorColor }} />
+            {onEdit && onDelete && (
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-60 transition-opacity">
+                <button onClick={() => onEdit(item)} className="p-0.5 rounded hover:opacity-100" style={{ color: settings.textColor }}>
+                  <Pencil size={10} />
+                </button>
+                <button onClick={() => onDelete(item.id)} className="p-0.5 rounded hover:opacity-100" style={{ color: settings.textColor }}>
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -185,52 +219,52 @@ function PreviewItem({
       toggleFolder(item.id);
       return;
     }
-
     if (isUrl && hasShortcutPath) {
-      const url = (item as any).shortcutPath;
-      launchMenuItem({ type: "url", label: item.label ?? undefined, shortcutPath: url });
+      launchMenuItem({ type: "url", label: item.label ?? undefined, shortcutPath: (item as any).shortcutPath });
       return;
     }
-
     if (hasShortcutPath) {
-      launchMenuItem({
-        type: item.type,
-        label: item.label ?? undefined,
-        shortcutPath: (item as any).shortcutPath,
-      });
+      launchMenuItem({ type: item.type, label: item.label ?? undefined, shortcutPath: (item as any).shortcutPath });
     }
   };
 
   return (
-    <div className="relative">
+    <div ref={setNodeRef} style={style}>
       <div
-        className="flex items-center gap-2 cursor-pointer transition-colors"
+        ref={itemRef}
+        className={cn(
+          "group flex items-center gap-2 cursor-pointer transition-colors",
+          isDropTarget && "ring-1 ring-inset"
+        )}
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
           paddingLeft: sideSubmenu ? "10px" : `${depth * 16 + 10}px`,
-          backgroundColor: isHovered ? settings.hoverColor : "transparent",
+          backgroundColor: isDropTarget
+            ? `${settings.hoverColor}cc`
+            : isHovered ? settings.hoverColor : "transparent",
           borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
           margin: "0 4px",
           fontFamily: settings.fontFamily,
           fontSize: `${settings.fontSize}px`,
           color: settings.textColor,
+          ...(isDropTarget ? { ringColor: settings.accentColor } : {}),
         }}
         onMouseEnter={() => setHoveredId(item.id)}
         onMouseLeave={() => {
           if (!sideSubmenu || !isExpandableFolder) setHoveredId(null);
         }}
         onClick={handleClick}
-        title={
-          isExpandableFolder
-            ? (sideSubmenu ? "Hover to expand" : "Click to expand/collapse")
-            : isUrl
-            ? `Open URL: ${(item as any).shortcutPath || ""}`
-            : hasShortcutPath
-            ? `Click to launch: ${(item as any).shortcutPath}`
-            : "No path configured"
-        }
-        data-testid={`preview-item-${item.id}`}
       >
+        {/* Drag handle — visible on hover */}
+        <button
+          className="cursor-grab touch-none opacity-0 group-hover:opacity-40 transition-opacity shrink-0"
+          style={{ color: settings.textColor }}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={12} />
+        </button>
+
         {!sideSubmenu && isExpandableFolder && (
           <span style={{ color: settings.textColor, opacity: 0.5 }}>
             {isExpanded ? <ChevronDown size={settings.fontSize} /> : <ChevronRight size={settings.fontSize} />}
@@ -239,7 +273,7 @@ function PreviewItem({
         <IconRenderer
           name={
             isExpandableFolder && getIconType(item.iconName) === "lucide"
-              ? (isExpanded && !sideSubmenu ? "FolderOpen" : "Folder")
+              ? (isExpanded && !sideSubmenu ? "FolderOpen" : isMenu ? "Layers" : "Folder")
               : isUrl && getIconType(item.iconName) === "lucide"
               ? (item.iconName || "Globe")
               : item.iconName
@@ -261,19 +295,37 @@ function PreviewItem({
         )}
 
         {!sideSubmenu && isExpandableFolder && !isExpanded && item.children.length > 0 && (
-          <span
-            className="text-[10px] opacity-40 tabular-nums"
-            style={{ fontFamily: settings.fontFamily }}
-          >
+          <span className="text-[10px] opacity-40 tabular-nums" style={{ fontFamily: settings.fontFamily }}>
             {item.children.length}
           </span>
         )}
+
+        {/* Edit/delete — visible on hover */}
+        {onEdit && onDelete && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+              className="p-0.5 rounded hover:opacity-100"
+              style={{ color: settings.textColor }}
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+              className="p-0.5 rounded hover:opacity-100"
+              style={{ color: settings.textColor }}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Vertical expand children */}
       {isExpandableFolder && item.children.length > 0 && !sideSubmenu && isExpanded && (
         <div>
           {item.children.map((child) => (
-            <PreviewItem
+            <SortablePreviewItem
               key={child.id}
               item={child}
               settings={settings}
@@ -283,52 +335,114 @@ function PreviewItem({
               hoveredId={hoveredId}
               setHoveredId={setHoveredId}
               sideSubmenu={false}
+              isDropTarget={false}
+              onEdit={onEdit}
+              onDelete={onDelete}
             />
           ))}
         </div>
       )}
 
-      {isExpandableFolder && item.children.length > 0 && sideSubmenu && isHovered && (
-        <div
-          className="absolute"
-          style={{
-            left: "100%",
-            top: 0,
-            width: `${settings.menuWidth}px`,
-            ...getMenuStyleCSS(settings),
-            ...getBorderCSS(settings),
-            zIndex: 50,
-          }}
-          onMouseEnter={() => setHoveredId(item.id)}
-          onMouseLeave={() => setHoveredId(null)}
-        >
-          <div className="py-2">
-            {item.children.map((child) => (
-              <PreviewItem
-                key={child.id}
-                item={child}
-                settings={settings}
-                depth={0}
-                expandedFolders={expandedFolders}
-                toggleFolder={toggleFolder}
-                hoveredId={hoveredId}
-                setHoveredId={setHoveredId}
-                sideSubmenu={true}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Side submenu via portal */}
+      {isExpandableFolder && item.children.length > 0 && sideSubmenu && isHovered &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: `${subPos.left}px`,
+              top: `${subPos.top}px`,
+              width: `${settings.menuWidth}px`,
+              maxHeight: `${(settings.menuHeight ?? 600) * 0.8}px`,
+              overflowY: "auto",
+              ...getMenuStyleCSS(settings),
+              ...getBorderCSS(settings),
+              zIndex: 9999,
+            }}
+            onMouseEnter={() => setHoveredId(item.id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            <div className="py-2">
+              {item.children.map((child) => (
+                <SortablePreviewItem
+                  key={child.id}
+                  item={child}
+                  settings={settings}
+                  depth={0}
+                  expandedFolders={expandedFolders}
+                  toggleFolder={toggleFolder}
+                  hoveredId={hoveredId}
+                  setHoveredId={setHoveredId}
+                  sideSubmenu={true}
+                  isDropTarget={false}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))}
+            </div>
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 }
 
-export function MenuPreview({ items, settings, profiles, activeProfileId, onProfileClick }: MenuPreviewProps) {
+// ────────────────────────────────────────────────────────────────
+// Flatten tree for DnD — only visible (expanded) items
+// ────────────────────────────────────────────────────────────────
+
+function flattenForDnd(
+  nodes: TreeItem[],
+  expandedFolders: Set<string>,
+  sideSubmenu: boolean,
+  depth = 0,
+): { item: TreeItem; depth: number }[] {
+  const result: { item: TreeItem; depth: number }[] = [];
+  for (const node of nodes) {
+    result.push({ item: node, depth });
+    const isExpandable = canHaveChildren(node.type) &&
+      (node.type === "menu" || ((node as any).folderAction || "expand") === "expand");
+    if (isExpandable && !sideSubmenu && expandedFolders.has(node.id) && node.children.length > 0) {
+      result.push(...flattenForDnd(node.children, expandedFolders, sideSubmenu, depth + 1));
+    }
+  }
+  return result;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Main preview component — now with integrated DnD editing
+// ────────────────────────────────────────────────────────────────
+
+interface MenuPreviewProps {
+  items: MenuItem[];
+  settings: Omit<MenuSettings, "id">;
+  profiles?: MenuProfile[];
+  activeProfileId?: string | null;
+  onProfileClick?: (profileId: string | null) => void;
+  onReorder?: (activeId: string, overId: string) => void;
+  onReparent?: (itemId: string, newParentId: string | null) => void;
+  onEdit?: (item: MenuItem) => void;
+  onDelete?: (id: string) => void;
+  onToggleExpand?: (id: string) => void;
+  onAddClick?: () => void;
+}
+
+export function MenuPreview({
+  items, settings, profiles, activeProfileId, onProfileClick,
+  onReorder, onReparent, onEdit, onDelete, onToggleExpand, onAddClick,
+}: MenuPreviewProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const sideSubmenu = (settings.submenuDirection ?? "vertical") === "side";
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   const toggleFolder = (id: string) => {
+    if (onToggleExpand) onToggleExpand(id);
     setExpandedFolders((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -338,8 +452,115 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
   };
 
   const tree = buildTree(items) as TreeItem[];
+  const flatItems = flattenForDnd(tree, expandedFolders, sideSubmenu);
+  const allIds = flatItems.map((f) => f.item.id);
   const running = isElectron();
   const hasProfiles = profiles && profiles.length > 0;
+  const editable = !!(onEdit && onDelete && onReorder);
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) { setDropTargetId(null); return; }
+    const overItem = items.find((i) => i.id === over.id);
+    if (overItem && canHaveChildren(overItem.type)) {
+      const fa = (overItem as any).folderAction || "expand";
+      if (fa === "expand" || overItem.type === "menu") {
+        setDropTargetId(over.id as string);
+        return;
+      }
+    }
+    setDropTargetId(null);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setDropTargetId(null);
+    if (!over || active.id === over.id) return;
+
+    const overItem = items.find((i) => i.id === over.id);
+    const activeItem = items.find((i) => i.id === active.id);
+    if (!activeItem) return;
+
+    if (overItem && canHaveChildren(overItem.type)) {
+      const fa = (overItem as any).folderAction || "expand";
+      if ((fa === "expand" || overItem.type === "menu") && activeItem.parentId !== overItem.id) {
+        onReparent?.(active.id as string, over.id as string);
+        return;
+      }
+    }
+    onReorder?.(active.id as string, over.id as string);
+  };
+
+  const menuContent = (
+    <div className="py-2">
+      {tree.length === 0 ? (
+        <div
+          className="flex flex-col items-center justify-center py-8 text-center gap-2"
+          style={{
+            color: settings.textColor,
+            opacity: 0.4,
+            fontFamily: settings.fontFamily,
+            fontSize: `${settings.fontSize}px`,
+          }}
+        >
+          <span>Empty menu</span>
+          {onAddClick && (
+            <button
+              onClick={onAddClick}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors"
+              style={{
+                backgroundColor: settings.hoverColor,
+                color: settings.textColor,
+                fontSize: `${settings.fontSize - 1}px`,
+                opacity: 0.7,
+              }}
+            >
+              <Plus size={14} />
+              Add Item
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {tree.map((item) => (
+            <SortablePreviewItem
+              key={item.id}
+              item={item}
+              settings={settings}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+              hoveredId={hoveredId}
+              setHoveredId={setHoveredId}
+              sideSubmenu={sideSubmenu}
+              isDropTarget={dropTargetId === item.id}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+          {onAddClick && (
+            <div className="px-2 pt-1">
+              <button
+                onClick={onAddClick}
+                className="flex items-center gap-1.5 w-full rounded-md px-2 py-1.5 transition-colors"
+                style={{
+                  color: settings.textColor,
+                  opacity: 0.3,
+                  fontFamily: settings.fontFamily,
+                  fontSize: `${(settings.fontSize ?? 13) - 1}px`,
+                  borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.6", e.currentTarget.style.backgroundColor = settings.hoverColor)}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.3", e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                <Plus size={13} />
+                Add Item
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col items-start justify-center h-full p-6 pl-8">
@@ -360,52 +581,30 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
           ...getBorderCSS(settings),
           maxHeight: `${settings.menuHeight ?? 600}px`,
           overflowY: "auto",
+          overflowX: "visible",
           scrollbarGutter: "stable",
         }}
         data-testid="menu-preview-container"
       >
-        <div className="py-2">
-          {tree.length === 0 ? (
-            <div
-              className="flex items-center justify-center py-8 text-center"
-              style={{
-                color: settings.textColor,
-                opacity: 0.4,
-                fontFamily: settings.fontFamily,
-                fontSize: `${settings.fontSize}px`,
-              }}
-            >
-              Empty menu
-            </div>
-          ) : (
-            tree.map((item) => (
-              <PreviewItem
-                key={item.id}
-                item={item}
-                settings={settings}
-                expandedFolders={expandedFolders}
-                toggleFolder={toggleFolder}
-                hoveredId={hoveredId}
-                setHoveredId={setHoveredId}
-                sideSubmenu={sideSubmenu}
-              />
-            ))
-          )}
-        </div>
+        {editable ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
+              {menuContent}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          menuContent
+        )}
 
         {hasProfiles && (
           <>
-            <div
-              className="mx-3"
-              style={{
-                height: "1px",
-                backgroundColor: settings.separatorColor,
-              }}
-            />
-            <div
-              className="flex flex-wrap gap-1 px-3 py-2"
-              data-testid="profile-buttons-container"
-            >
+            <div className="mx-3" style={{ height: "1px", backgroundColor: settings.separatorColor }} />
+            <div className="flex flex-wrap gap-1 px-3 py-2" data-testid="profile-buttons-container">
               {profiles!.map((profile) => {
                 const isActive = activeProfileId === profile.id;
                 return (
@@ -426,11 +625,7 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
                     data-testid={`button-profile-${profile.id}`}
                   >
                     {profile.showIcon && (
-                      <IconRenderer
-                        name={profile.iconName}
-                        color={profile.iconColor}
-                        size={(settings.iconSize ?? 16) - 2}
-                      />
+                      <IconRenderer name={profile.iconName} color={profile.iconColor} size={(settings.iconSize ?? 16) - 2} />
                     )}
                     {profile.showText && (
                       <span className="truncate max-w-[120px]">{profile.name}</span>
@@ -444,10 +639,7 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
       </div>
 
       <div className="mt-4">
-        <span
-          className="text-[10px] text-muted-foreground/40 font-mono"
-          data-testid="text-preview-dimensions"
-        >
+        <span className="text-[10px] text-muted-foreground/40 font-mono" data-testid="text-preview-dimensions">
           {settings.menuWidth}px &middot; {settings.fontFamily} &middot; {settings.fontSize}px
         </span>
       </div>

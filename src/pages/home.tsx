@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import * as api from "@/lib/tauri-api";
 import { refreshTrayMenu, reparentMenuItem } from "@/lib/tauri-api";
-import { MenuEditor } from "@/components/menu-editor";
 import { MenuPreview } from "@/components/menu-preview";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AddItemDialog, type AddItemInitialValues } from "@/components/add-item-dialog";
@@ -431,7 +430,8 @@ export default function Home() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-[340px] border-r border-border flex flex-col bg-background min-h-0">
+        {/* Profiles bar */}
+        <div className="w-[220px] border-r border-border flex flex-col bg-background min-h-0">
           <div className="border-b border-border">
             {activeProfileId && activeProfile ? (
               <div className="flex items-center gap-2 px-4 py-2">
@@ -470,7 +470,7 @@ export default function Home() {
             </div>
 
             {profiles.length > 0 && (
-              <div className="flex flex-wrap gap-1 px-4 pb-2">
+              <div className="flex flex-col gap-1 px-4 pb-2">
                 {profiles.map((profile) => {
                   const isActive = activeProfileId === profile.id;
                   return (
@@ -479,7 +479,7 @@ export default function Home() {
                         size="sm"
                         variant={isActive ? "default" : "outline"}
                         onClick={() => setActiveProfileId(isActive ? null : profile.id)}
-                        className="gap-1.5"
+                        className="gap-1.5 flex-1 justify-start"
                         data-testid={`button-select-profile-${profile.id}`}
                       >
                         {profile.showIcon && (
@@ -490,7 +490,7 @@ export default function Home() {
                           />
                         )}
                         {profile.showText && (
-                          <span className="truncate max-w-[80px]">{profile.name}</span>
+                          <span className="truncate">{profile.name}</span>
                         )}
                       </Button>
                       <div className="flex invisible group-hover:visible">
@@ -528,30 +528,9 @@ export default function Home() {
               </div>
             )}
           </div>
-
-          {isLoading ? (
-            <div className="p-4 flex flex-col gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-8 w-full" />
-              ))}
-            </div>
-          ) : (
-            <MenuEditor
-              items={items}
-              onReorder={handleReorder}
-              onReparent={handleReparent}
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
-              onToggleExpand={handleToggleExpand}
-              onAddClick={() => { setDropInitialValues(null); setAddDialogOpen(true); }}
-              onFileDrop={(values) => {
-                setDropInitialValues(values);
-                setAddDialogOpen(true);
-              }}
-            />
-          )}
         </div>
 
+        {/* Main preview area — now the editor */}
         <div className="flex-1 bg-muted/30 overflow-y-auto min-h-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
@@ -564,6 +543,12 @@ export default function Home() {
               profiles={profiles}
               activeProfileId={activeProfileId}
               onProfileClick={handleProfileClick}
+              onReorder={handleReorder}
+              onReparent={handleReparent}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              onToggleExpand={handleToggleExpand}
+              onAddClick={() => { setDropInitialValues(null); setAddDialogOpen(true); }}
             />
           )}
         </div>
