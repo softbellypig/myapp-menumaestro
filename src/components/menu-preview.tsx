@@ -202,7 +202,7 @@ function PreviewItem({
   };
 
   return (
-    <div className={cn(sideSubmenu && isExpandableFolder ? "relative" : "")}>
+    <div className="relative">
       <div
         className="flex items-center gap-2 cursor-pointer transition-colors"
         style={{
@@ -249,17 +249,10 @@ function PreviewItem({
         />
         <span className="flex-1 truncate">{item.label}</span>
 
-        {isUrl && isHovered && (
+        {(isUrl || (!isExpandableFolder && hasShortcutPath)) && (
           <ExternalLink
             size={settings.fontSize - 2}
-            style={{ color: settings.textColor, opacity: 0.4 }}
-          />
-        )}
-
-        {(!isExpandableFolder && !isUrl) && hasShortcutPath && isHovered && (
-          <ExternalLink
-            size={settings.fontSize - 2}
-            style={{ color: settings.textColor, opacity: 0.4 }}
+            style={{ color: settings.textColor, opacity: isHovered ? 0.4 : 0 }}
           />
         )}
 
@@ -349,7 +342,7 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
   const hasProfiles = profiles && profiles.length > 0;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-6">
+    <div className="flex flex-col items-start justify-center h-full p-6 pl-8">
       <div className="mb-4 flex items-center gap-2">
         <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
@@ -365,8 +358,9 @@ export function MenuPreview({ items, settings, profiles, activeProfileId, onProf
           width: `${settings.menuWidth}px`,
           ...getMenuStyleCSS(settings),
           ...getBorderCSS(settings),
-          maxHeight: (settings.submenuDirection ?? "vertical") === "side" ? undefined : "70vh",
-          overflowY: (settings.submenuDirection ?? "vertical") === "side" ? "visible" : "auto",
+          maxHeight: `${settings.menuHeight ?? 600}px`,
+          overflowY: "auto",
+          scrollbarGutter: "stable",
         }}
         data-testid="menu-preview-container"
       >

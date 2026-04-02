@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
+  type DragEndEvent, type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
@@ -18,6 +18,7 @@ import type { AddItemInitialValues } from "@/components/add-item-dialog";
 interface MenuEditorProps {
   items: MenuItem[];
   onReorder: (activeId: string, overId: string) => void;
+  onReparent?: (itemId: string, newParentId: string | null) => void;
   onEdit: (item: MenuItem) => void;
   onDelete: (id: string) => void;
   onToggleExpand: (id: string) => void;
@@ -79,9 +80,10 @@ async function processDroppedFile(
 }
 
 export function MenuEditor({
-  items, onReorder, onEdit, onDelete, onToggleExpand, onAddClick, onFileDrop,
+  items, onReorder, onReparent, onEdit, onDelete, onToggleExpand, onAddClick, onFileDrop,
 }: MenuEditorProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const onFileDropRef = useRef(onFileDrop);
   onFileDropRef.current = onFileDrop;
 
@@ -90,11 +92,43 @@ export function MenuEditor({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      setDropTargetId(null);
+      return;
+    }
+    const overItem = items.find((i) => i.id === over.id);
+    if (overItem && canHaveChildren(overItem.type)) {
+      const folderAction = (overItem as any).folderAction || "expand";
+      if (folderAction === "expand" || overItem.type === "menu") {
+        setDropTargetId(over.id as string);
+        return;
+      }
+    }
+    setDropTargetId(null);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (over && active.id !== over.id) {
-      onReorder(active.id as string, over.id as string);
+    setDropTargetId(null);
+    if (!over || active.id === over.id) return;
+
+    const overItem = items.find((i) => i.id === over.id);
+    const activeItem = items.find((i) => i.id === active.id);
+    if (!activeItem) return;
+
+    // If dropping onto an expandable folder/menu, reparent into it
+    if (overItem && canHaveChildren(overItem.type)) {
+      const folderAction = (overItem as any).folderAction || "expand";
+      if ((folderAction === "expand" || overItem.type === "menu") && activeItem.parentId !== overItem.id) {
+        onReparent?.(active.id as string, over.id as string);
+        return;
+      }
     }
+
+    // Otherwise reorder within same level
+    onReorder(active.id as string, over.id as string);
   };
 
   // Listen for native file drop events from Tauri backend
@@ -219,6 +253,7 @@ export function MenuEditor({
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
@@ -228,6 +263,7 @@ export function MenuEditor({
                     key={item.id}
                     item={item}
                     depth={depth}
+                    isDropTarget={dropTargetId === item.id}
                     onEdit={onEdit}
                     onDelete={onDelete}
                     onToggleExpand={onToggleExpand}

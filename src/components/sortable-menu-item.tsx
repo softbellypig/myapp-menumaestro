@@ -9,13 +9,14 @@ import type { MenuItem } from "@shared/schema";
 interface SortableMenuItemProps {
   item: MenuItem & { children?: MenuItem[] };
   depth?: number;
+  isDropTarget?: boolean;
   onEdit: (item: MenuItem) => void;
   onDelete: (id: string) => void;
   onToggleExpand?: (id: string) => void;
 }
 
 export function SortableMenuItem({
-  item, depth = 0, onEdit, onDelete, onToggleExpand,
+  item, depth = 0, isDropTarget = false, onEdit, onDelete, onToggleExpand,
 }: SortableMenuItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -35,10 +36,10 @@ export function SortableMenuItem({
     <div ref={setNodeRef} style={style} className={cn("group", isDragging && "opacity-50")}>
       <div
         className={cn(
-          "flex items-center gap-1.5 rounded-sm px-2 py-px transition-colors",
-          "hover:bg-accent/50"
+          "flex items-center gap-1 rounded-sm px-1.5 transition-colors h-7",
+          isDropTarget ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-accent/50"
         )}
-        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        style={{ paddingLeft: `${depth * 16 + 6}px` }}
         data-testid={`menu-item-${item.id}`}
       >
         <button
@@ -47,7 +48,7 @@ export function SortableMenuItem({
           {...listeners}
           data-testid={`drag-handle-${item.id}`}
         >
-          <GripVertical size={14} />
+          <GripVertical size={12} />
         </button>
 
         {isExpandable && (
@@ -56,21 +57,21 @@ export function SortableMenuItem({
             className="text-muted-foreground hover:text-foreground"
             data-testid={`toggle-folder-${item.id}`}
           >
-            {item.isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {item.isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
         )}
 
         {isSeparator ? (
           <div className="flex-1 flex items-center gap-2">
-            <Minus size={14} className="text-muted-foreground" />
+            <Minus size={12} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground italic">Separator</span>
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <IconRenderer name={item.iconName} color={item.iconColor} size={15} />
-            <span className="text-sm truncate">{item.label}</span>
-            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider ml-auto">
-              {isFolder && !isExpandable ? "folder link" : item.type === "url" ? "url" : item.type}
+            <IconRenderer name={item.iconName} color={item.iconColor} size={12} />
+            <span className="text-xs truncate">{item.label}</span>
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider ml-auto shrink-0">
+              {isFolder && !isExpandable ? "link" : item.type === "url" ? "url" : item.type}
             </span>
           </div>
         )}
@@ -82,7 +83,7 @@ export function SortableMenuItem({
             onClick={() => onEdit(item)}
             data-testid={`button-edit-${item.id}`}
           >
-            <Pencil size={13} />
+            <Pencil size={12} />
           </Button>
           <Button
             size="icon"
@@ -90,7 +91,7 @@ export function SortableMenuItem({
             onClick={() => onDelete(item.id)}
             data-testid={`button-delete-${item.id}`}
           >
-            <Trash2 size={13} className="text-destructive" />
+            <Trash2 size={12} className="text-destructive" />
           </Button>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import * as api from "@/lib/tauri-api";
-import { refreshTrayMenu } from "@/lib/tauri-api";
+import { refreshTrayMenu, reparentMenuItem } from "@/lib/tauri-api";
 import { MenuEditor } from "@/components/menu-editor";
 import { MenuPreview } from "@/components/menu-preview";
 import { SettingsPanel } from "@/components/settings-panel";
@@ -76,6 +76,7 @@ export default function Home() {
       backgroundColor: s.backgroundColor,
       textColor: s.textColor,
       menuWidth: s.menuWidth,
+      menuHeight: s.menuHeight ?? 600,
       borderRadius: s.borderRadius,
       separatorColor: s.separatorColor,
       hoverColor: s.hoverColor,
@@ -245,6 +246,21 @@ export default function Home() {
     [reorderMutation]
   );
 
+  const reparentMutation = useMutation({
+    mutationFn: async ({ itemId, newParentId }: { itemId: string; newParentId: string | null }) => {
+      return reparentMenuItem(itemId, newParentId);
+    },
+    onSuccess: onItemMutationSuccess,
+    onError: onMutationError,
+  });
+
+  const handleReparent = useCallback(
+    (itemId: string, newParentId: string | null) => {
+      reparentMutation.mutate({ itemId, newParentId });
+    },
+    [reparentMutation]
+  );
+
   const handleToggleExpand = useCallback(
     (id: string) => {
       const item = items.find((i) => i.id === id);
@@ -297,8 +313,8 @@ export default function Home() {
         URL.revokeObjectURL(url);
         toast({ title: "Backup saved", description: "Your layout has been downloaded." });
       }
-    } catch {
-      toast({ title: "Backup failed", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Backup failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
   }, [toast]);
 
@@ -523,6 +539,7 @@ export default function Home() {
             <MenuEditor
               items={items}
               onReorder={handleReorder}
+              onReparent={handleReparent}
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onToggleExpand={handleToggleExpand}
@@ -584,6 +601,7 @@ export default function Home() {
         }}
         onAdd={handleAddItem}
         folders={folders}
+        allItems={items}
         initialValues={dropInitialValues}
       />
 
@@ -593,6 +611,7 @@ export default function Home() {
         item={editingItem}
         onSave={handleSaveEdit}
         folders={folders}
+        allItems={items}
       />
 
       <ProfileDialog

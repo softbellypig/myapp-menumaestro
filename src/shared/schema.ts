@@ -23,6 +23,7 @@ export interface MenuSettings {
   backgroundColor: string;
   textColor: string;
   menuWidth: number;
+  menuHeight: number;
   borderRadius: number;
   separatorColor: string;
   hoverColor: string;
@@ -60,6 +61,7 @@ export const insertMenuSettingsSchema = z.object({
   backgroundColor: z.string().default("#1e1e2e"),
   textColor: z.string().default("#cdd6f4"),
   menuWidth: z.number().int().default(280),
+  menuHeight: z.number().int().default(600),
   borderRadius: z.number().int().default(8),
   separatorColor: z.string().default("#45475a"),
   hoverColor: z.string().default("#313244"),

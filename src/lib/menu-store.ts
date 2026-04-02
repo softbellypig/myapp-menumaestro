@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Omit<MenuSettings, "id"> = {
   backgroundColor: "#1e1e2e",
   textColor: "#cdd6f4",
   menuWidth: 280,
+  menuHeight: 600,
   borderRadius: 8,
   separatorColor: "#45475a",
   hoverColor: "#313244",

@@ -24,11 +24,25 @@ fn show_popup_menu(app: &tauri::AppHandle, x: f64, y: f64) {
     } else {
         menu_width + 20.0
     };
-    let window_height = 700.0;
+    let window_height = (settings.menu_height as f64).max(300.0) + 100.0;
+
+    // Get the available work area (excludes taskbar)
+    let (work_y, work_h) = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let pos = m.position();
+            let size = m.size();
+            (pos.y as f64, size.height as f64)
+        })
+        .unwrap_or((0.0, 1080.0));
 
     let popup_x = (x - menu_width / 2.0 + settings.popup_offset_x as f64).max(0.0);
-    // Position above the taskbar — add extra 50px gap, plus user offset
-    let popup_y = (y - window_height - 50.0 + settings.popup_offset_y as f64).max(0.0);
+    // Position the popup so its bottom sits just above the click point (tray icon)
+    let popup_y = (y - window_height + settings.popup_offset_y as f64)
+        .max(work_y)
+        .min(work_y + work_h - window_height);
 
     let settings_json = serde_json::to_value(&settings).unwrap_or_default();
     let payload = serde_json::json!({
@@ -209,6 +223,7 @@ fn main() {
             commands::update_menu_item,
             commands::delete_menu_item,
             commands::reorder_menu_items,
+            commands::reparent_menu_item,
             commands::get_menu_settings,
             commands::update_menu_settings,
             commands::export_data,

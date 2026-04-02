@@ -141,6 +141,21 @@ export function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Menu Height</Label>
+            <span className="text-xs font-mono text-muted-foreground">{settings.menuHeight ?? 600}px</span>
+          </div>
+          <Slider
+            value={[settings.menuHeight ?? 600]}
+            onValueChange={([v]) => onChange({ menuHeight: v })}
+            min={200}
+            max={900}
+            step={10}
+            data-testid="slider-menu-height"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">Border Radius</Label>
             <span className="text-xs font-mono text-muted-foreground">{settings.borderRadius}px</span>
           </div>

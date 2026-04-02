@@ -11,8 +11,29 @@ import {
 import { IconPicker, IconRenderer, getIconType } from "@/components/icon-renderer";
 import { isTauri as isElectron, pickPath, getFileIcon } from "@/lib/tauri-api";
 import { FolderSearch } from "lucide-react";
-import { canHaveChildren } from "@/lib/menu-store";
+import { canHaveChildren, buildTree } from "@/lib/menu-store";
 import type { MenuItem } from "@shared/schema";
+
+type TreeMenuItem = MenuItem & { children: TreeMenuItem[] };
+
+/** Flatten tree into ordered list with depth, for hierarchical dropdown */
+function flattenFolderTree(
+  nodes: TreeMenuItem[],
+  depth = 0,
+  exclude?: string
+): { item: MenuItem; depth: number }[] {
+  const result: { item: MenuItem; depth: number }[] = [];
+  for (const node of nodes) {
+    if (node.id === exclude) continue;
+    const isExpandable = canHaveChildren(node.type) &&
+      (node.type === "menu" || ((node as any).folderAction || "expand") === "expand");
+    if (isExpandable) {
+      result.push({ item: node, depth });
+      result.push(...flattenFolderTree(node.children as TreeMenuItem[], depth + 1, exclude));
+    }
+  }
+  return result;
+}
 
 export interface AddItemInitialValues {
   type?: "program" | "file" | "folder" | "separator" | "url" | "menu";
@@ -36,10 +57,11 @@ interface AddItemDialogProps {
     folderAction?: "expand" | "open" | null;
   }) => void;
   folders: MenuItem[];
+  allItems?: MenuItem[];
   initialValues?: AddItemInitialValues | null;
 }
 
-export function AddItemDialog({ open, onOpenChange, onAdd, folders, initialValues }: AddItemDialogProps) {
+export function AddItemDialog({ open, onOpenChange, onAdd, folders, allItems, initialValues }: AddItemDialogProps) {
   const [type, setType] = useState<"program" | "file" | "folder" | "separator" | "url" | "menu">("program");
   const [label, setLabel] = useState("");
   const [shortcutPath, setShortcutPath] = useState("");
@@ -276,30 +298,37 @@ export function AddItemDialog({ open, onOpenChange, onAdd, folders, initialValue
             </>
           )}
 
-          {folders.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label>Parent Folder</Label>
-              <Select
-                value={parentId || "__root__"}
-                onValueChange={(v) => setParentId(v === "__root__" ? null : v)}
-              >
-                <SelectTrigger data-testid="select-parent-folder">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__root__">Root (Top Level)</SelectItem>
-                  {folders.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      <span className="flex items-center gap-2">
-                        <IconRenderer name={f.iconName} color={f.iconColor} size={14} />
-                        {f.label || "Unnamed Folder"}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {folders.length > 0 && (() => {
+            const tree = buildTree(allItems || folders) as TreeMenuItem[];
+            const orderedFolders = flattenFolderTree(tree);
+            return (
+              <div className="flex flex-col gap-2">
+                <Label>Parent Folder</Label>
+                <Select
+                  value={parentId || "__root__"}
+                  onValueChange={(v) => setParentId(v === "__root__" ? null : v)}
+                >
+                  <SelectTrigger data-testid="select-parent-folder">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__root__">Root (Top Level)</SelectItem>
+                    {orderedFolders.map(({ item: f, depth }) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        <span className="flex items-center gap-1" style={{ paddingLeft: `${depth * 16}px` }}>
+                          <IconRenderer name={f.iconName} color={f.iconColor} size={14} />
+                          <span className="truncate">{f.label || "Unnamed Folder"}</span>
+                          {depth > 0 && (
+                            <span className="text-[9px] text-muted-foreground/50 ml-1">sub</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })()}
         </div>
 
         <DialogFooter>

@@ -96,6 +96,11 @@ pub fn reorder_menu_items(storage: State<Storage>, active_id: String, over_id: S
     storage.reorder_menu_items(&active_id, &over_id);
 }
 
+#[tauri::command]
+pub fn reparent_menu_item(storage: State<Storage>, item_id: String, new_parent_id: Option<String>) {
+    storage.reparent_menu_item(&item_id, new_parent_id.as_deref());
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -323,6 +328,15 @@ pub fn get_file_icon(target_path: String) -> Value {
 
 #[cfg(target_os = "windows")]
 fn extract_icon_windows(path: &str) -> Option<String> {
+    // Resolve .lnk to target so we get the real icon without shortcut overlay
+    let resolved = if path.to_lowercase().ends_with(".lnk") {
+        lnk::ShellLink::open(path).ok()
+            .and_then(|lnk| lnk.link_info().and_then(|i| i.local_base_path().map(|p| p.to_string())))
+            .unwrap_or_else(|| path.to_string())
+    } else {
+        path.to_string()
+    };
+    let path = &resolved;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use std::ptr;

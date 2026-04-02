@@ -35,6 +35,10 @@ export async function reorderMenuItems(activeId: string, overId: string) {
   return invoke("reorder_menu_items", { activeId, overId });
 }
 
+export async function reparentMenuItem(itemId: string, newParentId: string | null) {
+  return invoke("reparent_menu_item", { itemId, newParentId });
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function getMenuSettings() {

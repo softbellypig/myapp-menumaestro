@@ -246,7 +246,7 @@ export default function TrayPopup() {
   const [settings, setSettings] = useState<Omit<MenuSettings, "id">>({
     fontFamily: "Inter", fontSize: 13, iconSize: 16, itemSpacing: 2,
     accentColor: "#3b82f6", backgroundColor: "#1e1e2e", textColor: "#cdd6f4",
-    menuWidth: 280, borderRadius: 8, separatorColor: "#45475a", hoverColor: "#313244",
+    menuWidth: 280, menuHeight: 600, borderRadius: 8, separatorColor: "#45475a", hoverColor: "#313244",
     submenuDirection: "vertical", menuStyle: "none", borderStyle: "flat",
     borderThickness: "thin", borderColor: "#45475a",
     gradientColorMid: "#2a2a3e", gradientColorEnd: "#3a3a5e",
@@ -330,7 +330,7 @@ export default function TrayPopup() {
         }}
       >
         <div style={{
-          width: `${settings.menuWidth}px`, maxHeight: "85vh",
+          width: `${settings.menuWidth}px`, maxHeight: `${settings.menuHeight ?? 600}px`,
           overflowY: "auto",
           position: "relative",
           ...getMenuStyleCSS(settings), ...getBorderCSS(settings),

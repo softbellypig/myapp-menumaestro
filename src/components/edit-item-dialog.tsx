@@ -10,9 +10,29 @@ import {
 } from "@/components/ui/select";
 import { IconPicker, IconRenderer, getIconType } from "@/components/icon-renderer";
 import { isTauri as isElectron, pickPath, getFileIcon } from "@/lib/tauri-api";
-import { canHaveChildren } from "@/lib/menu-store";
+import { canHaveChildren, buildTree } from "@/lib/menu-store";
 import { FolderSearch } from "lucide-react";
 import type { MenuItem } from "@shared/schema";
+
+type TreeMenuItem = MenuItem & { children: TreeMenuItem[] };
+
+function flattenFolderTree(
+  nodes: TreeMenuItem[],
+  depth = 0,
+  exclude?: string
+): { item: MenuItem; depth: number }[] {
+  const result: { item: MenuItem; depth: number }[] = [];
+  for (const node of nodes) {
+    if (node.id === exclude) continue;
+    const isExpandable = canHaveChildren(node.type) &&
+      (node.type === "menu" || ((node as any).folderAction || "expand") === "expand");
+    if (isExpandable) {
+      result.push({ item: node, depth });
+      result.push(...flattenFolderTree(node.children as TreeMenuItem[], depth + 1, exclude));
+    }
+  }
+  return result;
+}
 
 type ItemType = "program" | "file" | "folder" | "separator" | "url" | "menu";
 
@@ -22,9 +42,10 @@ interface EditItemDialogProps {
   item: MenuItem | null;
   onSave: (id: string, updates: Partial<MenuItem>) => void;
   folders: MenuItem[];
+  allItems?: MenuItem[];
 }
 
-export function EditItemDialog({ open, onOpenChange, item, onSave, folders }: EditItemDialogProps) {
+export function EditItemDialog({ open, onOpenChange, item, onSave, folders, allItems }: EditItemDialogProps) {
   const [type, setType] = useState<ItemType>("program");
   const [label, setLabel] = useState("");
   const [shortcutPath, setShortcutPath] = useState("");
@@ -216,25 +237,32 @@ export function EditItemDialog({ open, onOpenChange, item, onSave, folders }: Ed
             </>
           )}
 
-          {availableFolders.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label>Parent</Label>
-              <Select value={parentId || "__root__"} onValueChange={(v) => setParentId(v === "__root__" ? null : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__root__">Root (Top Level)</SelectItem>
-                  {availableFolders.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      <span className="flex items-center gap-2">
-                        <IconRenderer name={f.iconName} color={f.iconColor} size={14} />
-                        {f.label || (f.type === "menu" ? "Unnamed Menu" : "Unnamed Folder")}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {availableFolders.length > 0 && (() => {
+            const tree = buildTree(allItems || folders) as TreeMenuItem[];
+            const orderedFolders = flattenFolderTree(tree, 0, item?.id);
+            return (
+              <div className="flex flex-col gap-2">
+                <Label>Parent</Label>
+                <Select value={parentId || "__root__"} onValueChange={(v) => setParentId(v === "__root__" ? null : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__root__">Root (Top Level)</SelectItem>
+                    {orderedFolders.map(({ item: f, depth }) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        <span className="flex items-center gap-1" style={{ paddingLeft: `${depth * 16}px` }}>
+                          <IconRenderer name={f.iconName} color={f.iconColor} size={14} />
+                          <span className="truncate">{f.label || (f.type === "menu" ? "Unnamed Menu" : "Unnamed Folder")}</span>
+                          {depth > 0 && (
+                            <span className="text-[9px] text-muted-foreground/50 ml-1">sub</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })()}
         </div>
 
         <DialogFooter>

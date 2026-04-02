@@ -34,6 +34,8 @@ pub struct MenuSettings {
     pub background_color: String,
     pub text_color: String,
     pub menu_width: i32,
+    #[serde(default = "default_menu_height")]
+    pub menu_height: i32,
     pub border_radius: i32,
     pub separator_color: String,
     pub hover_color: String,
@@ -56,6 +58,7 @@ pub struct MenuSettings {
 
 fn default_false() -> bool { false }
 fn default_submenu_delay() -> i32 { 300 }
+fn default_menu_height() -> i32 { 600 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,6 +124,7 @@ fn default_settings() -> MenuSettings {
         background_color: "#1e1e2e".into(),
         text_color: "#cdd6f4".into(),
         menu_width: 280,
+        menu_height: 600,
         border_radius: 8,
         separator_color: "#45475a".into(),
         hover_color: "#313244".into(),
@@ -289,6 +293,25 @@ impl Storage {
                     item.sort_order = i as i32;
                 }
             }
+        }
+        drop(data);
+        self.save();
+    }
+
+    pub fn reparent_menu_item(&self, item_id: &str, new_parent_id: Option<&str>) {
+        let mut data = self.data.lock().unwrap();
+        let new_parent = new_parent_id.map(|s| s.to_string());
+        let max_order = data
+            .menu_items
+            .iter()
+            .filter(|i| i.parent_id == new_parent)
+            .map(|i| i.sort_order)
+            .max()
+            .unwrap_or(-1);
+
+        if let Some(item) = data.menu_items.iter_mut().find(|i| i.id == item_id) {
+            item.parent_id = new_parent;
+            item.sort_order = max_order + 1;
         }
         drop(data);
         self.save();
