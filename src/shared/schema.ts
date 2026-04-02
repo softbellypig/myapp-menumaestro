@@ -38,6 +38,7 @@ export interface MenuSettings {
   submenuDelay?: number;
   popupOffsetX?: number;
   popupOffsetY?: number;
+  hideShortcutArrows?: boolean;
 }
 
 export const insertMenuItemSchema = z.object({
@@ -76,6 +77,7 @@ export const insertMenuSettingsSchema = z.object({
   submenuDelay: z.number().int().default(300),
   popupOffsetX: z.number().int().default(0),
   popupOffsetY: z.number().int().default(0),
+  hideShortcutArrows: z.boolean().default(false),
 });
 
 export interface MenuProfile {

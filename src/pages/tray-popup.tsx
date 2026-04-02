@@ -149,7 +149,7 @@ function PopupItem({
           color={item.iconColor} size={iconSize}
         />
         <span className="flex-1 truncate">{item.label}</span>
-        {(isUrl || (!isExpandable && hasPath)) && hovered && (
+        {!settings.hideShortcutArrows && (isUrl || (!isExpandable && hasPath)) && hovered && (
           <ExternalLink size={settings.fontSize - 2} style={{ color: settings.textColor, opacity: 0.4 }} />
         )}
         {sideSubmenu && isExpandable && item.children.length > 0 && (

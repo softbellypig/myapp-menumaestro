@@ -54,6 +54,8 @@ pub struct MenuSettings {
     pub popup_offset_x: i32,
     #[serde(default)]
     pub popup_offset_y: i32,
+    #[serde(default = "default_false")]
+    pub hide_shortcut_arrows: bool,
 }
 
 fn default_false() -> bool { false }

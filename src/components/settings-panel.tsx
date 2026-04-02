@@ -189,6 +189,15 @@ export function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
               : "Submenus open to the right, like classic Windows menus."}
           </span>
         </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-xs text-muted-foreground">Hide Shortcut Arrows</Label>
+          <Switch
+            checked={settings.hideShortcutArrows ?? false}
+            onCheckedChange={(v) => onChange({ hideShortcutArrows: v })}
+            data-testid="switch-hide-shortcut-arrows"
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-2 pb-1 border-b border-border">

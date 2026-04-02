@@ -157,6 +157,8 @@ function SortablePreviewItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const itemRef = useRef<HTMLDivElement>(null);
   const [subPos, setSubPos] = useState({ top: 0, left: 0 });
+  const [showSub, setShowSub] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFolder = item.type === "folder";
   const isMenu = item.type === "menu";
@@ -169,17 +171,28 @@ function SortablePreviewItem({
   const isUrl = item.type === "url";
   const iconSize = settings.iconSize ?? 16;
 
+  const cancelClose = () => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+  };
+  const scheduleClose = (ms = 250) => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setShowSub(false), ms);
+  };
+  useEffect(() => () => cancelClose(), []);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
 
-  // Calculate side submenu position
+  // Calculate side submenu position and show on hover
   useEffect(() => {
     if (isHovered && sideSubmenu && isExpandableFolder && itemRef.current) {
       const rect = itemRef.current.getBoundingClientRect();
       setSubPos({ top: rect.top, left: rect.right });
+      cancelClose();
+      setShowSub(true);
     }
   }, [isHovered, sideSubmenu, isExpandableFolder]);
 
@@ -249,9 +262,16 @@ function SortablePreviewItem({
           color: settings.textColor,
           ...(isDropTarget ? { ringColor: settings.accentColor } : {}),
         }}
-        onMouseEnter={() => setHoveredId(item.id)}
+        onMouseEnter={() => {
+          setHoveredId(item.id);
+          if (sideSubmenu && isExpandableFolder) cancelClose();
+        }}
         onMouseLeave={() => {
-          if (!sideSubmenu || !isExpandableFolder) setHoveredId(null);
+          if (sideSubmenu && isExpandableFolder) {
+            scheduleClose();
+          } else {
+            setHoveredId(null);
+          }
         }}
         onClick={handleClick}
       >
@@ -283,7 +303,7 @@ function SortablePreviewItem({
         />
         <span className="flex-1 truncate">{item.label}</span>
 
-        {(isUrl || (!isExpandableFolder && hasShortcutPath)) && (
+        {!settings.hideShortcutArrows && (isUrl || (!isExpandableFolder && hasShortcutPath)) && (
           <ExternalLink
             size={settings.fontSize - 2}
             style={{ color: settings.textColor, opacity: isHovered ? 0.4 : 0 }}
@@ -344,7 +364,7 @@ function SortablePreviewItem({
       )}
 
       {/* Side submenu via portal */}
-      {isExpandableFolder && item.children.length > 0 && sideSubmenu && isHovered &&
+      {isExpandableFolder && item.children.length > 0 && sideSubmenu && showSub &&
         createPortal(
           <div
             style={{
@@ -358,8 +378,8 @@ function SortablePreviewItem({
               ...getBorderCSS(settings),
               zIndex: 9999,
             }}
-            onMouseEnter={() => setHoveredId(item.id)}
-            onMouseLeave={() => setHoveredId(null)}
+            onMouseEnter={() => { setHoveredId(item.id); cancelClose(); }}
+            onMouseLeave={() => { setHoveredId(null); scheduleClose(); }}
           >
             <div className="py-2">
               {item.children.map((child) => (
