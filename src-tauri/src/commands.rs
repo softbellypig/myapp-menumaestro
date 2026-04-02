@@ -331,7 +331,11 @@ fn extract_icon_windows(path: &str) -> Option<String> {
     // Resolve .lnk to target so we get the real icon without shortcut overlay
     let resolved = if path.to_lowercase().ends_with(".lnk") {
         lnk::ShellLink::open(path).ok()
-            .and_then(|lnk| lnk.link_info().and_then(|i| i.local_base_path().map(|p| p.to_string())))
+            .and_then(|lnk| {
+                lnk.link_info()
+                    .as_ref()
+                    .and_then(|i| i.local_base_path().as_ref().map(|p| p.to_string()))
+            })
             .unwrap_or_else(|| path.to_string())
     } else {
         path.to_string()
