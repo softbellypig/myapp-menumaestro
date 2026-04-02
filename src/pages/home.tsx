@@ -1,8 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import * as api from "@/lib/tauri-api";
-import { refreshTrayMenu, reparentMenuItem } from "@/lib/tauri-api";
+import { refreshTrayMenu, reparentMenuItem, isTauri, checkPath, getFileIcon, onNativeFileDrop } from "@/lib/tauri-api";
 import { MenuPreview } from "@/components/menu-preview";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AddItemDialog, type AddItemInitialValues } from "@/components/add-item-dialog";
@@ -32,6 +32,51 @@ export default function Home() {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<MenuProfile | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // ─── Native file drop (from desktop into the app) ─────────────────────────
+
+  const handleFileDropRef = useRef<(values: AddItemInitialValues) => void>();
+  handleFileDropRef.current = (values: AddItemInitialValues) => {
+    setDropInitialValues(values);
+    setAddDialogOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    onNativeFileDrop(async (filePaths: string[]) => {
+      if (filePaths.length === 0) return;
+      setIsDragOver(false);
+      const filePath = filePaths[0];
+      let isDirectory = false;
+      try { const r = await checkPath(filePath); isDirectory = r.isDirectory || false; } catch {}
+      const ext = filePath.split(".").pop()?.toLowerCase() || "";
+      const type: "program" | "file" | "folder" = isDirectory ? "folder"
+        : ["exe", "bat", "cmd", "lnk", "ps1", "msi"].includes(ext) ? "program" : "file";
+      const parts = filePath.replace(/\\/g, "/").split("/");
+      const filename = parts[parts.length - 1] || "";
+      const label = type === "program" ? filename.replace(/\.(exe|bat|cmd|lnk|ps1|msi)$/i, "") : filename;
+      let iconName: string | undefined;
+      try { const ic = await getFileIcon(filePath); if (ic) iconName = ic; } catch {}
+      if (!iconName) iconName = type === "folder" ? "Folder" : type === "program" ? "Terminal" : "FileText";
+      handleFileDropRef.current?.({
+        type, label, shortcutPath: filePath, iconName,
+        iconColor: type === "program" ? "#3b82f6" : type === "folder" ? "#facc15" : "#a78bfa",
+        folderAction: type === "folder" ? "open" : undefined,
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    const onOver = (e: DragEvent) => { e.preventDefault(); if (e.dataTransfer?.types.includes("Files")) setIsDragOver(true); };
+    const onLeave = (e: DragEvent) => { if (e.relatedTarget === null) setIsDragOver(false); };
+    const onDrop = () => setIsDragOver(false);
+    document.addEventListener("dragover", onOver);
+    document.addEventListener("dragleave", onLeave);
+    document.addEventListener("drop", onDrop);
+    return () => { document.removeEventListener("dragover", onOver); document.removeEventListener("dragleave", onLeave); document.removeEventListener("drop", onDrop); };
+  }, []);
 
   // ─── Queries (Tauri invoke instead of fetch) ───────────────────────────────
 
@@ -531,7 +576,18 @@ export default function Home() {
         </div>
 
         {/* Main preview area — now the editor */}
-        <div className="flex-1 bg-muted/30 overflow-y-auto min-h-0">
+        <div className="flex-1 bg-muted/30 overflow-y-auto min-h-0 relative">
+          {isDragOver && (
+            <div className="absolute inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
+              <div className="flex flex-col items-center text-center p-8 rounded-xl border-2 border-dashed border-primary/30 bg-background/95">
+                <div className="rounded-full bg-primary/10 p-4 mb-3">
+                  <Download size={32} className="text-primary" />
+                </div>
+                <p className="text-base font-medium text-primary">Drop to add</p>
+                <p className="text-xs text-muted-foreground mt-1">Programs, files, folders, and shortcuts</p>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Skeleton className="h-64 w-64 rounded-lg" />

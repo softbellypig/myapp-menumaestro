@@ -583,11 +583,11 @@ export function MenuPreview({
   );
 
   return (
-    <div className="flex flex-col items-start justify-center h-full p-6 pl-8">
+    <div className="flex flex-col items-center justify-center h-full p-6">
       <div className="mb-4 flex items-center gap-2">
         <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
-          {running ? "Live Menu · Click to Launch" : "Live Preview"}
+          Live Menu Preview · Click to Interact · Move
           {activeProfileId && profiles ? ` · ${profiles.find(p => p.id === activeProfileId)?.name ?? ""}` : ""}
         </span>
         <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
