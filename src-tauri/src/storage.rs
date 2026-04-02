@@ -141,6 +141,7 @@ fn default_settings() -> MenuSettings {
         submenu_delay: 300,
         popup_offset_x: 0,
         popup_offset_y: 0,
+        hide_shortcut_arrows: false,
     }
 }
 
