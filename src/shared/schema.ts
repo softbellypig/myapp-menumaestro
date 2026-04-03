@@ -34,6 +34,7 @@ export interface MenuSettings {
   borderColor: string;
   gradientColorMid: string;
   gradientColorEnd: string;
+  gradientType: "linear" | "radial";
   launchAtStartup?: boolean;
   submenuDelay?: number;
   popupOffsetX?: number;
@@ -73,6 +74,7 @@ export const insertMenuSettingsSchema = z.object({
   borderColor: z.string().default("#45475a"),
   gradientColorMid: z.string().default("#2a2a3e"),
   gradientColorEnd: z.string().default("#3a3a5e"),
+  gradientType: z.enum(["linear", "radial"]).default("linear"),
   launchAtStartup: z.boolean().default(false),
   submenuDelay: z.number().int().default(300),
   popupOffsetX: z.number().int().default(0),

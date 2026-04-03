@@ -26,8 +26,15 @@ function getMenuStyleCSS(s: Omit<MenuSettings, "id">): React.CSSProperties {
       };
     case "frosted-glass":
       return { backgroundColor: bg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" };
-    case "gradient":
-      return { background: `linear-gradient(180deg, ${bg} 0%, ${s.gradientColorMid ?? "#2a2a3e"} 50%, ${s.gradientColorEnd ?? "#3a3a5e"} 100%)` };
+    case "gradient": {
+      const mid = s.gradientColorMid ?? "#2a2a3e";
+      const end = s.gradientColorEnd ?? "#3a3a5e";
+      const gradType = (s as any).gradientType ?? "linear";
+      if (gradType === "radial") {
+        return { background: `radial-gradient(ellipse at 50% 0%, ${bg} 0%, ${mid} 50%, ${end} 100%)` };
+      }
+      return { background: `linear-gradient(180deg, ${bg} 0%, ${mid} 50%, ${end} 100%)` };
+    }
     default:
       return { backgroundColor: bg };
   }
@@ -121,7 +128,7 @@ function PopupItem({
         className="flex items-center gap-2 cursor-pointer transition-colors"
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
-          paddingLeft: sideSubmenu ? "6px" : `${depth * 14 + 6}px`,
+          paddingLeft: sideSubmenu ? "3px" : `${depth * 10 + 3}px`,
           backgroundColor: (hovered || showSub) ? settings.hoverColor : "transparent",
           borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
           margin: "0 2px",
@@ -218,7 +225,7 @@ function BottomAction({
       className="flex items-center gap-2 cursor-pointer transition-colors"
       style={{
         padding: `${settings.itemSpacing + 3}px 10px`,
-        paddingLeft: "6px",
+        paddingLeft: "3px",
         backgroundColor: hovered ? settings.hoverColor : "transparent",
         borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
         margin: "0 2px",
@@ -249,7 +256,7 @@ export default function TrayPopup() {
     menuWidth: 280, menuHeight: 600, borderRadius: 8, separatorColor: "#45475a", hoverColor: "#313244",
     submenuDirection: "vertical", menuStyle: "none", borderStyle: "flat",
     borderThickness: "thin", borderColor: "#45475a",
-    gradientColorMid: "#2a2a3e", gradientColorEnd: "#3a3a5e",
+    gradientColorMid: "#2a2a3e", gradientColorEnd: "#3a3a5e", gradientType: "linear",
     launchAtStartup: false, submenuDelay: 300,
   });
 
@@ -327,6 +334,7 @@ export default function TrayPopup() {
           width: "100vw", height: "100vh",
           display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "flex-start",
           overflow: "visible",
+          padding: "16px",
         }}
       >
         <div style={{

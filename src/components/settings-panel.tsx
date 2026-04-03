@@ -227,6 +227,21 @@ export function SettingsPanel({ settings, onChange }: SettingsPanelProps) {
 
         {(settings.menuStyle ?? "none") === "gradient" && (
           <>
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs text-muted-foreground">Gradient Type</Label>
+              <Select
+                value={settings.gradientType ?? "linear"}
+                onValueChange={(v) => onChange({ gradientType: v as "linear" | "radial" })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="linear">Layered (top to bottom)</SelectItem>
+                  <SelectItem value="radial">Radial (center outward)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <ColorSwatch
               label="Mid Color"
               value={settings.gradientColorMid ?? "#2a2a3e"}

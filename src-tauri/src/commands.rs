@@ -200,6 +200,11 @@ pub fn reparent_menu_item(storage: State<Storage>, item_id: String, new_parent_i
     storage.reparent_menu_item(&item_id, new_parent_id.as_deref());
 }
 
+#[tauri::command]
+pub fn sort_children_by_name(storage: State<Storage>, parent_id: Option<String>) {
+    storage.sort_children_by_name(parent_id.as_deref());
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 #[tauri::command]

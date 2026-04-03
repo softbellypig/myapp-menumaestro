@@ -83,6 +83,12 @@ function getMenuStyleCSS(settings: Omit<MenuSettings, "id">): React.CSSPropertie
     case "gradient": {
       const mid = settings.gradientColorMid ?? "#2a2a3e";
       const end = settings.gradientColorEnd ?? "#3a3a5e";
+      const gradType = settings.gradientType ?? "linear";
+      if (gradType === "radial") {
+        return {
+          background: `radial-gradient(ellipse at 50% 0%, ${bg} 0%, ${mid} 50%, ${end} 100%)`,
+        };
+      }
       return {
         background: `linear-gradient(180deg, ${bg} 0%, ${mid} 50%, ${end} 100%)`,
       };
@@ -133,13 +139,48 @@ function getBorderCSS(settings: Omit<MenuSettings, "id">): React.CSSProperties {
 }
 
 // ────────────────────────────────────────────────────────────────
+// Simple right-click context menu
+// ────────────────────────────────────────────────────────────────
+
+function ContextMenu({ x, y, items, onClose }: {
+  x: number; y: number;
+  items: { label: string; onClick: () => void }[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = () => onClose();
+    document.addEventListener("click", handler);
+    document.addEventListener("contextmenu", handler);
+    return () => { document.removeEventListener("click", handler); document.removeEventListener("contextmenu", handler); };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      style={{ position: "fixed", left: x, top: y, zIndex: 99999 }}
+      className="bg-popover border border-border rounded-md shadow-lg py-1 min-w-[140px]"
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+          onClick={(e) => { e.stopPropagation(); item.onClick(); onClose(); }}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>,
+    document.body
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
 // Sortable preview item — the menu item itself, draggable + editable
 // ────────────────────────────────────────────────────────────────
 
 function SortablePreviewItem({
   item, settings, depth = 0, expandedFolders, toggleFolder,
   hoveredId, setHoveredId, sideSubmenu, isDropTarget, isDragging: parentDragging,
-  onEdit, onDelete,
+  onEdit, onDelete, onContextMenu,
 }: {
   item: TreeItem;
   settings: Omit<MenuSettings, "id">;
@@ -153,6 +194,7 @@ function SortablePreviewItem({
   isDragging?: boolean;
   onEdit?: (item: MenuItem) => void;
   onDelete?: (id: string) => void;
+  onContextMenu?: (e: React.MouseEvent, parentId: string | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const itemRef = useRef<HTMLDivElement>(null);
@@ -251,7 +293,7 @@ function SortablePreviewItem({
         )}
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
-          paddingLeft: sideSubmenu ? "6px" : `${depth * 14 + 6}px`,
+          paddingLeft: sideSubmenu ? "3px" : `${depth * 10 + 3}px`,
           backgroundColor: isDropTarget
             ? `${settings.hoverColor}cc`
             : isHovered ? settings.hoverColor : "transparent",
@@ -274,6 +316,15 @@ function SortablePreviewItem({
           }
         }}
         onClick={handleClick}
+        onContextMenu={(e) => {
+          if (onContextMenu) {
+            e.preventDefault();
+            e.stopPropagation();
+            // For expandable folders, sort their children; otherwise sort the parent level
+            const targetParent = isExpandableFolder ? item.id : (item.parentId || null);
+            onContextMenu(e, targetParent);
+          }
+        }}
       >
         {/* Drag handle — visible on hover */}
         <button
@@ -358,6 +409,7 @@ function SortablePreviewItem({
               isDropTarget={false}
               onEdit={onEdit}
               onDelete={onDelete}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -445,16 +497,22 @@ interface MenuPreviewProps {
   onDelete?: (id: string) => void;
   onToggleExpand?: (id: string) => void;
   onAddClick?: () => void;
+  onSortByName?: (parentId: string | null) => void;
 }
 
 export function MenuPreview({
   items, settings, profiles, activeProfileId, onProfileClick,
-  onReorder, onReparent, onEdit, onDelete, onToggleExpand, onAddClick,
+  onReorder, onReparent, onEdit, onDelete, onToggleExpand, onAddClick, onSortByName,
 }: MenuPreviewProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; parentId: string | null } | null>(null);
   const sideSubmenu = (settings.submenuDirection ?? "vertical") === "side";
+
+  const onContextMenu = (e: React.MouseEvent, parentId: string | null) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, parentId });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -555,6 +613,7 @@ export function MenuPreview({
               isDropTarget={dropTargetId === item.id}
               onEdit={onEdit}
               onDelete={onDelete}
+              onContextMenu={onContextMenu}
             />
           ))}
           {onAddClick && (
@@ -663,6 +722,17 @@ export function MenuPreview({
           {settings.menuWidth}px &middot; {settings.fontFamily} &middot; {settings.fontSize}px
         </span>
       </div>
+
+      {contextMenu && onSortByName && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={[
+            { label: "Sort by Name", onClick: () => onSortByName(contextMenu.parentId) },
+          ]}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

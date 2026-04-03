@@ -46,6 +46,8 @@ pub struct MenuSettings {
     pub border_color: String,
     pub gradient_color_mid: String,
     pub gradient_color_end: String,
+    #[serde(default = "default_linear")]
+    pub gradient_type: String,
     #[serde(default = "default_false")]
     pub launch_at_startup: bool,
     #[serde(default = "default_submenu_delay")]
@@ -61,6 +63,7 @@ pub struct MenuSettings {
 fn default_false() -> bool { false }
 fn default_submenu_delay() -> i32 { 300 }
 fn default_menu_height() -> i32 { 600 }
+fn default_linear() -> String { "linear".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +140,7 @@ fn default_settings() -> MenuSettings {
         border_color: "#45475a".into(),
         gradient_color_mid: "#2a2a3e".into(),
         gradient_color_end: "#3a3a5e".into(),
+        gradient_type: "linear".into(),
         launch_at_startup: false,
         submenu_delay: 300,
         popup_offset_x: 0,
@@ -295,6 +299,25 @@ impl Storage {
                 if let Some(item) = siblings.iter_mut().find(|s| s.id == *sid) {
                     item.sort_order = i as i32;
                 }
+            }
+        }
+        drop(data);
+        self.save();
+    }
+
+    pub fn sort_children_by_name(&self, parent_id: Option<&str>) {
+        let mut data = self.data.lock().unwrap();
+        let target_parent = parent_id.map(|s| s.to_string());
+        let mut siblings: Vec<(String, String)> = data
+            .menu_items
+            .iter()
+            .filter(|i| i.parent_id == target_parent)
+            .map(|i| (i.id.clone(), i.label.clone().unwrap_or_default().to_lowercase()))
+            .collect();
+        siblings.sort_by(|a, b| a.1.cmp(&b.1));
+        for (i, (id, _)) in siblings.iter().enumerate() {
+            if let Some(item) = data.menu_items.iter_mut().find(|m| m.id == *id) {
+                item.sort_order = i as i32;
             }
         }
         drop(data);

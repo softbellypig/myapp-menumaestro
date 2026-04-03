@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: Omit<MenuSettings, "id"> = {
   borderColor: "#45475a",
   gradientColorMid: "#2a2a3e",
   gradientColorEnd: "#3a3a5e",
+  gradientType: "linear",
 };
 
 export const ICON_OPTIONS = [

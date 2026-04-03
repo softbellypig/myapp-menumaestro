@@ -248,6 +248,7 @@ fn main() {
             commands::quit_app,
             commands::set_launch_at_startup,
             commands::scan_folder,
+            commands::sort_children_by_name,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import * as api from "@/lib/tauri-api";
-import { refreshTrayMenu, reparentMenuItem, isTauri, checkPath, getFileIcon, onNativeFileDrop, scanFolder, type ScannedItem } from "@/lib/tauri-api";
+import { refreshTrayMenu, reparentMenuItem, isTauri, checkPath, getFileIcon, onNativeFileDrop, scanFolder, sortChildrenByName, type ScannedItem } from "@/lib/tauri-api";
 import { MenuPreview } from "@/components/menu-preview";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AddItemDialog, type AddItemInitialValues } from "@/components/add-item-dialog";
@@ -196,6 +196,12 @@ export default function Home() {
       borderColor: s.borderColor ?? "#45475a",
       gradientColorMid: s.gradientColorMid ?? "#2a2a3e",
       gradientColorEnd: s.gradientColorEnd ?? "#3a3a5e",
+      gradientType: s.gradientType ?? "linear" as const,
+      launchAtStartup: s.launchAtStartup ?? false,
+      submenuDelay: s.submenuDelay ?? 300,
+      popupOffsetX: s.popupOffsetX ?? 0,
+      popupOffsetY: s.popupOffsetY ?? 0,
+      hideShortcutArrows: s.hideShortcutArrows ?? false,
     };
   };
 
@@ -670,6 +676,15 @@ export default function Home() {
               onDelete={handleDeleteItem}
               onToggleExpand={handleToggleExpand}
               onAddClick={() => { setDropInitialValues(null); setAddDialogOpen(true); }}
+              onSortByName={async (parentId) => {
+                await sortChildrenByName(parentId);
+                if (activeProfileId) {
+                  queryClient.invalidateQueries({ queryKey: ["profiles", activeProfileId, "menu-items"] });
+                } else {
+                  queryClient.invalidateQueries({ queryKey: ["menu-items"] });
+                }
+                refreshTrayMenu();
+              }}
             />
           )}
         </div>
