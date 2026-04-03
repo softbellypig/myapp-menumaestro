@@ -121,10 +121,10 @@ function PopupItem({
         className="flex items-center gap-2 cursor-pointer transition-colors"
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
-          paddingLeft: sideSubmenu ? "10px" : `${depth * 16 + 10}px`,
+          paddingLeft: sideSubmenu ? "6px" : `${depth * 14 + 6}px`,
           backgroundColor: (hovered || showSub) ? settings.hoverColor : "transparent",
           borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
-          margin: "0 4px",
+          margin: "0 2px",
           fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px`, color: settings.textColor,
         }}
         onMouseEnter={() => {
@@ -218,10 +218,10 @@ function BottomAction({
       className="flex items-center gap-2 cursor-pointer transition-colors"
       style={{
         padding: `${settings.itemSpacing + 3}px 10px`,
-        paddingLeft: "10px",
+        paddingLeft: "6px",
         backgroundColor: hovered ? settings.hoverColor : "transparent",
         borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
-        margin: "0 4px",
+        margin: "0 2px",
         fontFamily: settings.fontFamily,
         fontSize: `${(settings.fontSize ?? 13) - 1}px`,
         color: settings.textColor,

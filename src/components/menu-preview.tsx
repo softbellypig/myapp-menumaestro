@@ -251,12 +251,12 @@ function SortablePreviewItem({
         )}
         style={{
           padding: `${settings.itemSpacing + 4}px 10px`,
-          paddingLeft: sideSubmenu ? "10px" : `${depth * 16 + 10}px`,
+          paddingLeft: sideSubmenu ? "6px" : `${depth * 14 + 6}px`,
           backgroundColor: isDropTarget
             ? `${settings.hoverColor}cc`
             : isHovered ? settings.hoverColor : "transparent",
           borderRadius: `${Math.max(settings.borderRadius - 4, 2)}px`,
-          margin: "0 4px",
+          margin: "0 2px",
           fontFamily: settings.fontFamily,
           fontSize: `${settings.fontSize}px`,
           color: settings.textColor,
