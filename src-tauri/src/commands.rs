@@ -328,6 +328,16 @@ pub fn get_file_icon(target_path: String) -> Value {
 
 #[cfg(target_os = "windows")]
 fn extract_icon_windows(path: &str) -> Option<String> {
+    // Wrap everything in catch_unwind — the lnk crate and Windows APIs
+    // can panic on malformed shortcuts (drive roots, UWP, shell objects)
+    let path_owned = path.to_string();
+    std::panic::catch_unwind(move || extract_icon_windows_inner(&path_owned))
+        .ok()
+        .flatten()
+}
+
+#[cfg(target_os = "windows")]
+fn extract_icon_windows_inner(path: &str) -> Option<String> {
     // Resolve .lnk to target so we get the real icon without shortcut overlay
     let resolved = if path.to_lowercase().ends_with(".lnk") {
         lnk::ShellLink::open(path).ok()
