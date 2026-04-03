@@ -247,6 +247,7 @@ fn main() {
             commands::refresh_tray,
             commands::quit_app,
             commands::set_launch_at_startup,
+            commands::scan_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

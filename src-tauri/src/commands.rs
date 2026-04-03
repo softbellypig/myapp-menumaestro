@@ -1,7 +1,106 @@
 use crate::storage::{InsertMenuItem, InsertProfile, MenuItem, MenuProfile, MenuSettings, Storage, StorageData};
+use serde::Serialize;
 use serde_json::Value;
 use std::process::Command;
 use tauri::{AppHandle, State};
+
+// ─── Folder Scanning ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedItem {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub item_type: String,
+    pub icon: Option<String>,
+    pub depth: usize,
+}
+
+fn infer_item_type(path: &std::path::Path, is_dir: bool) -> Option<String> {
+    if is_dir {
+        return Some("folder".into());
+    }
+    let ext = path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "exe" | "bat" | "cmd" | "lnk" | "ps1" | "msi" => Some("program".into()),
+        _ => None, // skip non-executable files
+    }
+}
+
+fn scan_dir_recursive(
+    dir: &std::path::Path,
+    results: &mut Vec<ScannedItem>,
+    current_depth: usize,
+    max_depth: usize,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden files/folders
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let is_dir = path.is_dir();
+        let item_type = match infer_item_type(&path, is_dir) {
+            Some(t) => t,
+            None => continue, // skip non-relevant files
+        };
+
+        // Extract icon (best-effort, don't fail on errors)
+        let icon = {
+            #[cfg(target_os = "windows")]
+            {
+                extract_icon_windows(&path.to_string_lossy())
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                None
+            }
+        };
+
+        let label = if item_type == "program" {
+            name.split('.').next().unwrap_or(&name).to_string()
+        } else {
+            name.clone()
+        };
+
+        results.push(ScannedItem {
+            path: path.to_string_lossy().to_string(),
+            name: label,
+            is_dir,
+            item_type,
+            icon,
+            depth: current_depth,
+        });
+
+        // Recurse into directories
+        if is_dir && current_depth < max_depth {
+            scan_dir_recursive(&path, results, current_depth + 1, max_depth);
+        }
+    }
+}
+
+#[tauri::command]
+pub fn scan_folder(target_path: String, max_depth: Option<usize>) -> Result<Vec<ScannedItem>, String> {
+    let path = std::path::Path::new(&target_path);
+    if !path.is_dir() {
+        return Err("Not a directory".into());
+    }
+    let mut results = Vec::new();
+    scan_dir_recursive(path, &mut results, 0, max_depth.unwrap_or(2));
+    Ok(results)
+}
 
 /// Refresh tray - the popup will get fresh data on next open
 #[tauri::command]

@@ -151,6 +151,19 @@ export async function getFileIcon(targetPath: string): Promise<string | null> {
   return null;
 }
 
+export interface ScannedItem {
+  path: string;
+  name: string;
+  isDir: boolean;
+  itemType: string;
+  icon: string | null;
+  depth: number;
+}
+
+export async function scanFolder(targetPath: string, maxDepth?: number): Promise<ScannedItem[]> {
+  return invoke<ScannedItem[]>("scan_folder", { targetPath, maxDepth: maxDepth ?? 2 });
+}
+
 /** Open a native file/folder picker dialog */
 export async function pickPath(
   type: "program" | "file" | "folder" = "program"

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import * as api from "@/lib/tauri-api";
-import { refreshTrayMenu, reparentMenuItem, isTauri, checkPath, getFileIcon, onNativeFileDrop } from "@/lib/tauri-api";
+import { refreshTrayMenu, reparentMenuItem, isTauri, checkPath, getFileIcon, onNativeFileDrop, scanFolder, type ScannedItem } from "@/lib/tauri-api";
 import { MenuPreview } from "@/components/menu-preview";
 import { SettingsPanel } from "@/components/settings-panel";
 import { AddItemDialog, type AddItemInitialValues } from "@/components/add-item-dialog";
@@ -33,14 +33,36 @@ export default function Home() {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<MenuProfile | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [scanQueue, setScanQueue] = useState<ScannedItem[]>([]);
+  const [scanParentId, setScanParentId] = useState<string | null>(null);
+  const [scanStats, setScanStats] = useState({ added: 0, skipped: 0 });
+  const scanQueueRef = useRef(scanQueue);
+  scanQueueRef.current = scanQueue;
 
   // ─── Native file drop (from desktop into the app) ─────────────────────────
 
-  const handleFileDropRef = useRef<(values: AddItemInitialValues) => void>();
-  handleFileDropRef.current = (values: AddItemInitialValues) => {
+  const openAddForItem = useCallback((values: AddItemInitialValues) => {
     setDropInitialValues(values);
     setAddDialogOpen(true);
-  };
+  }, []);
+
+  const processNextScanItem = useCallback(() => {
+    const queue = scanQueueRef.current;
+    if (queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setScanQueue(rest);
+    const iconName = next.icon ? `custom:${next.icon}` : (
+      next.itemType === "folder" ? "Folder" : next.itemType === "program" ? "Terminal" : "FileText"
+    );
+    openAddForItem({
+      type: next.itemType as any,
+      label: next.name,
+      shortcutPath: next.path,
+      iconName,
+      iconColor: next.itemType === "program" ? "#3b82f6" : next.itemType === "folder" ? "#facc15" : "#a78bfa",
+      folderAction: next.isDir ? "open" : undefined,
+    });
+  }, [openAddForItem]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -50,22 +72,65 @@ export default function Home() {
       const filePath = filePaths[0];
       let isDirectory = false;
       try { const r = await checkPath(filePath); isDirectory = r.isDirectory || false; } catch {}
+
+      if (isDirectory) {
+        // Scan the folder and queue items for review
+        try {
+          const scanned = await scanFolder(filePath);
+          if (scanned.length === 0) {
+            toast({ title: "Empty folder", description: "No shortcuts or executables found." });
+            return;
+          }
+          // Create the parent folder as an expandable menu first
+          const parts = filePath.replace(/\\/g, "/").split("/");
+          const folderName = parts[parts.length - 1] || "Folder";
+          const parentItem = await api.createMenuItem({
+            type: "menu",
+            label: folderName,
+            iconName: "Folder",
+            iconColor: "#facc15",
+          });
+          queryClient.invalidateQueries({ queryKey: ["menu-items"] });
+          refreshTrayMenu();
+          setScanParentId(parentItem.id);
+          setScanStats({ added: 0, skipped: 0 });
+          setScanQueue(scanned);
+          // Process first item (rest handled in onOpenChange callback)
+          const [first, ...rest] = scanned;
+          setScanQueue(rest);
+          const iconName = first.icon ? `custom:${first.icon}` : (
+            first.itemType === "folder" ? "Folder" : first.itemType === "program" ? "Terminal" : "FileText"
+          );
+          openAddForItem({
+            type: first.itemType as any,
+            label: first.name,
+            shortcutPath: first.path,
+            iconName,
+            iconColor: first.itemType === "program" ? "#3b82f6" : first.itemType === "folder" ? "#facc15" : "#a78bfa",
+            folderAction: first.isDir ? "open" : undefined,
+          });
+          toast({ title: `Scanning folder`, description: `${scanned.length} items found — review each one.` });
+        } catch {
+          toast({ title: "Scan failed", variant: "destructive" });
+        }
+        return;
+      }
+
+      // Single file drop
       const ext = filePath.split(".").pop()?.toLowerCase() || "";
-      const type: "program" | "file" | "folder" = isDirectory ? "folder"
-        : ["exe", "bat", "cmd", "lnk", "ps1", "msi"].includes(ext) ? "program" : "file";
+      const type: "program" | "file" | "folder" = ["exe", "bat", "cmd", "lnk", "ps1", "msi"].includes(ext) ? "program" : "file";
       const parts = filePath.replace(/\\/g, "/").split("/");
       const filename = parts[parts.length - 1] || "";
       const label = type === "program" ? filename.replace(/\.(exe|bat|cmd|lnk|ps1|msi)$/i, "") : filename;
       let iconName: string | undefined;
       try { const ic = await getFileIcon(filePath); if (ic) iconName = ic; } catch {}
-      if (!iconName) iconName = type === "folder" ? "Folder" : type === "program" ? "Terminal" : "FileText";
-      handleFileDropRef.current?.({
+      if (!iconName) iconName = type === "program" ? "Terminal" : "FileText";
+      openAddForItem({
         type, label, shortcutPath: filePath, iconName,
-        iconColor: type === "program" ? "#3b82f6" : type === "folder" ? "#facc15" : "#a78bfa",
-        folderAction: type === "folder" ? "open" : undefined,
+        iconColor: type === "program" ? "#3b82f6" : "#a78bfa",
       });
     });
-  }, []);
+  }, [openAddForItem, toast]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -637,10 +702,38 @@ export default function Home() {
       <AddItemDialog
         open={addDialogOpen}
         onOpenChange={(open) => {
-          setAddDialogOpen(open);
-          if (!open) setDropInitialValues(null);
+          if (!open) {
+            setAddDialogOpen(false);
+            setDropInitialValues(null);
+            // If we're scanning, this was a skip — process next
+            if (scanQueueRef.current.length > 0) {
+              setScanStats((s) => ({ ...s, skipped: s.skipped + 1 }));
+              setTimeout(() => processNextScanItem(), 100);
+            } else if (scanParentId && scanStats.added + scanStats.skipped > 0) {
+              // Queue just finished
+              toast({ title: "Scan complete", description: `${scanStats.added} added, ${scanStats.skipped} skipped` });
+              setScanParentId(null);
+            }
+          } else {
+            setAddDialogOpen(true);
+          }
         }}
-        onAdd={handleAddItem}
+        onAdd={(item) => {
+          // If scanning, force parentId to the scan parent folder
+          const finalItem = scanParentId ? { ...item, parentId: scanParentId } : item;
+          handleAddItem(finalItem);
+          if (scanQueueRef.current.length > 0) {
+            setScanStats((s) => ({ ...s, added: s.added + 1 }));
+            setTimeout(() => processNextScanItem(), 100);
+          } else if (scanParentId) {
+            setScanStats((s) => {
+              const final_ = { added: s.added + 1, skipped: s.skipped };
+              toast({ title: "Scan complete", description: `${final_.added} added, ${final_.skipped} skipped` });
+              return final_;
+            });
+            setScanParentId(null);
+          }
+        }}
         folders={folders}
         allItems={items}
         initialValues={dropInitialValues}
